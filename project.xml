@@ -27,6 +27,7 @@
     <use project = "cidr" test = "cidr_alloc" header="libcidr.h"
         repository = "https://github.com/42ity/libcidr"/>
 
+    <!-- NOTE: We use a customized version, so not relying on libcxxtools-dev package -->
     <use project = "cxxtools" test="cxxtools::Utf8Codec::Utf8Codec" header="cxxtools/allocator.h"
         language = "C++"
         repository = "https://github.com/42ity/cxxtools"
