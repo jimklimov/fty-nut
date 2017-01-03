@@ -28,11 +28,12 @@
         repository = "https://github.com/42ity/libcidr"/>
 
     <use project = "cxxtools" test="cxxtools::Utf8Codec::Utf8Codec" header="cxxtools/allocator.h"
+        language = "C++"
         repository = "https://github.com/42ity/cxxtools"
         release = "42ity"/>
 
     <use project = "libnutclient" test = "nut::TcpClient::TcpClient" header="nutclient.h"
-        prefix="nutclient"
+        prefix = "nutclient" language = "C++"
         debian_name = "libnutclient-dev"
         repository = "https://github.com/networkupstools/nut"/>
 
