@@ -33,6 +33,7 @@
 
     <use project = "libnutclient" test = "nut::TcpClient::TcpClient" header="nutclient.h"
         prefix="nutclient"
+        debian_name = "libnutclient-dev"
         repository = "https://github.com/networkupstools/nut"/>
 
     <class name = "logger"          private = "1">logging api</class>
