@@ -88,6 +88,7 @@ PKG_CHECK_MODULES([libzmq], [libzmq >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $libzmq_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libzmq not found; falling back to defined compilability tests])
         AC_ARG_WITH([libzmq],
             [
                 AS_HELP_STRING([--with-libzmq],
@@ -135,7 +136,40 @@ PKG_CHECK_MODULES([czmq], [libczmq >= 3.0.2 libczmq < 4],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $czmq_LIBS"
     ],
     [
-        AC_MSG_ERROR([Cannot find libczmq >= 3.0.2 and < 4])
+        AC_MSG_NOTICE([Package libczmq not found with needed constraints; falling back to defined compilability tests])
+        AC_ARG_WITH([libczmq],
+            [
+                AS_HELP_STRING([--with-libczmq],
+                [Specify libczmq prefix])
+            ],
+            [search_libczmq="yes"],
+            [])
+
+        czmq_synthetic_cflags=""
+        czmq_synthetic_libs="-lczmq"
+
+        if test "x$search_libczmq" = "xyes"; then
+            if test -r "${with_libczmq}/include/czmq.h"; then
+                czmq_synthetic_cflags="-I${with_libczmq}/include"
+                czmq_synthetic_libs="-L${with_libczmq}/lib -lczmq"
+            else
+                AC_MSG_ERROR([${with_libczmq}/include/czmq.h not found. Please check libczmq prefix])
+            fi
+        fi
+
+
+        AC_CHECK_LIB([czmq], [zctx_test],
+            [
+                CFLAGS="${czmq_synthetic_cflags} ${CFLAGS}"
+                LDFLAGS="${czmq_synthetic_libs} ${LDFLAGS}"
+                LIBS="${czmq_synthetic_libs} ${LIBS}"
+
+                AC_SUBST([czmq_CFLAGS],[${czmq_synthetic_cflags}])
+                AC_SUBST([czmq_LIBS],[${czmq_synthetic_libs}])
+                was_czmq_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lczmq"
+            ],
+            [AC_MSG_ERROR([cannot link with -lczmq, install libczmq])])
     ])
 
 if test "x$was_czmq_check_lib_detected" = "xno"; then
@@ -150,7 +184,40 @@ PKG_CHECK_MODULES([malamute], [libmlm >= 1.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $malamute_LIBS"
     ],
     [
-        AC_MSG_ERROR([Cannot find libmlm 1.0.0 or higher])
+        AC_MSG_NOTICE([Package libmlm not found with needed constraints; falling back to defined compilability tests])
+        AC_ARG_WITH([libmlm],
+            [
+                AS_HELP_STRING([--with-libmlm],
+                [Specify libmlm prefix])
+            ],
+            [search_libmlm="yes"],
+            [])
+
+        malamute_synthetic_cflags=""
+        malamute_synthetic_libs="-lmlm"
+
+        if test "x$search_libmlm" = "xyes"; then
+            if test -r "${with_libmlm}/include/malamute.h"; then
+                malamute_synthetic_cflags="-I${with_libmlm}/include"
+                malamute_synthetic_libs="-L${with_libmlm}/lib -lmlm"
+            else
+                AC_MSG_ERROR([${with_libmlm}/include/malamute.h not found. Please check libmlm prefix])
+            fi
+        fi
+
+
+        AC_CHECK_LIB([mlm], [mlm_server_test],
+            [
+                CFLAGS="${malamute_synthetic_cflags} ${CFLAGS}"
+                LDFLAGS="${malamute_synthetic_libs} ${LDFLAGS}"
+                LIBS="${malamute_synthetic_libs} ${LIBS}"
+
+                AC_SUBST([malamute_CFLAGS],[${malamute_synthetic_cflags}])
+                AC_SUBST([malamute_LIBS],[${malamute_synthetic_libs}])
+                was_malamute_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lmlm"
+            ],
+            [AC_MSG_ERROR([cannot link with -lmlm, install libmlm])])
     ])
 
 if test "x$was_malamute_check_lib_detected" = "xno"; then
@@ -165,6 +232,7 @@ PKG_CHECK_MODULES([fty_proto], [libfty_proto >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $fty_proto_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libfty_proto not found; falling back to defined compilability tests])
         AC_ARG_WITH([libfty_proto],
             [
                 AS_HELP_STRING([--with-libfty_proto],
@@ -212,6 +280,7 @@ PKG_CHECK_MODULES([cidr], [cidr >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $cidr_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package cidr not found; falling back to defined compilability tests])
         AC_ARG_WITH([cidr],
             [
                 AS_HELP_STRING([--with-cidr],
@@ -259,6 +328,7 @@ PKG_CHECK_MODULES([cxxtools], [cxxtools >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $cxxtools_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package cxxtools not found; falling back to defined compilability tests])
         AC_ARG_WITH([cxxtools],
             [
                 AS_HELP_STRING([--with-cxxtools],
@@ -306,6 +376,7 @@ PKG_CHECK_MODULES([libnutclient], [libnutclient >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $libnutclient_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libnutclient not found; falling back to defined compilability tests])
         AC_ARG_WITH([libnutclient],
             [
                 AS_HELP_STRING([--with-libnutclient],
@@ -614,7 +685,13 @@ if test "x$cross_compiling" = "xyes"; then
 else
     # enable draft API by default if we're in a git repository
     # else disable it by default; then allow --enable-drafts=yes/no override
-    AC_CHECK_FILE($srcdir/.git, [defaultval=yes], [defaultval=no])
+    AC_CHECK_FILE($srcdir/.git, [defaultval=yes],
+        [AC_MSG_CHECKING([running under a git repository workspace])
+         AS_IF([git rev-parse --show-toplevel 2>/dev/null],
+            [defaultval=yes],
+            [defaultval=no])
+         AC_MSG_RESULT($defaultval)
+        ])
 fi
 
 AC_ARG_ENABLE([drafts],
@@ -682,6 +759,8 @@ AM_COND_IF([WITH_SYSTEMD_UNITS],
                  src/fty-nut-configurator.service
     ])],
     [])
+
+
 
 
 AC_OUTPUT

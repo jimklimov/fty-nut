@@ -9,3 +9,4 @@ lib/systemd/system/fty-nut{,@*}.{service,*}
 etc/fty-nut/fty-nut-configurator.cfg
 lib/systemd/system/fty-nut-configurator{,@*}.{service,*}
 
+
