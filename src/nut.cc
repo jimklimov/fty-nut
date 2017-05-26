@@ -436,57 +436,40 @@ nut_save (nut_t *self, const char *fullpath)
      */
     fty_proto_t *asset = (fty_proto_t *) zhashx_first (self->assets);
     while (asset) {
+        fty_proto_t *duplicate = fty_proto_dup (asset);
+        uint64_t size = 0;
+        zframe_t *frame = NULL;
+        assert (duplicate);
+        zmsg_t *zmessage = fty_proto_encode (&duplicate); // duplicate destroyed here
+        assert (zmessage);
+
 #if CZMQ_VERSION_MAJOR == 3
-        fty_proto_t *duplicate = fty_proto_dup (asset);
-        assert (duplicate);
-        zmsg_t *zmessage = fty_proto_encode (&duplicate); // duplicate destroyed here
-        assert (zmessage);
+        {
+            byte *buffer = NULL;
+            size = zmsg_encode (zmessage, &buffer);
 
-        byte *buffer = NULL;
-        size_t size = zmsg_encode (zmessage, &buffer);
-        zmsg_destroy (&zmessage);
-
-        assert (buffer);
-        assert (size > 0);
-
-        // prefix
-// FIXME: originally this was for uint64_t, should it be sizeof (size) instead?
-        zchunk_extend (chunk, (const void *) &size, sizeof (uint64_t));
-        // data
-        zchunk_extend (chunk, (const void *) buffer, size);
-
-        free (buffer); buffer = NULL;
-
-        asset = (fty_proto_t *) zhashx_next (self->assets);
+            assert (buffer);
+            assert (size > 0);
+            frame = zframe_new (buffer, size);
+            free (buffer);
+            buffer = NULL;
+        }
 #else
-/* Assume CZMQ4 */
-/* FIXME: Someone should look at this - what do we want achieved here? */
-        fty_proto_t *duplicate = fty_proto_dup (asset);
-        assert (duplicate);
-        zmsg_t *zmessage = fty_proto_encode (&duplicate); // duplicate destroyed here
-        assert (zmessage);
-
-        zframe_t *frame = zmsg_encode (zmessage);
-        size_t size = zframe_size (frame);
+        frame = zmsg_encode (zmessage);
+        size = zframe_size (frame);
+#endif
         zmsg_destroy (&zmessage);
-
         assert (frame);
         assert (size > 0);
 
         // prefix
 // FIXME: originally this was for uint64_t, should it be sizeof (size) instead?
         zchunk_extend (chunk, (const void *) &size, sizeof (uint64_t));
-/* FIXME: Someone should look at this - don't we have anything
- * to extend for frame case? */
         // data
-//        zchunk_extend (chunk, (const void *) buffer, size);
+        zchunk_extend (chunk, (const void *) zframe_data (frame), zframe_size (frame));
 
-/* FIXME: Someone should look at this - don't we have anything
- * (else) to free for frame case? */
         zframe_destroy (&frame);
-
         asset = (fty_proto_t *) zhashx_next (self->assets);
-#endif
     }
 
     if (zchunk_write (chunk, zfile_handle (file)) == -1) {
@@ -541,6 +524,9 @@ nut_load (nut_t *self, const char *fullpath)
 
     zchunk_t *chunk = zchunk_read (zfile_handle (file), cursize);
     assert (chunk);
+    zframe_t *frame = zframe_new (zchunk_data (chunk), zchunk_size (chunk));
+    assert (frame);
+    zchunk_destroy (&chunk);
 
     zfile_close (file);
     zfile_destroy (&file);
@@ -548,17 +534,19 @@ nut_load (nut_t *self, const char *fullpath)
     off_t offset = 0;
 
     while (offset < cursize) {
-        byte *prefix = zchunk_data (chunk) + offset;
-#if CZMQ_VERSION_MAJOR == 3
-        byte *data = zchunk_data (chunk) + offset + sizeof (size_t);
-#endif
-        offset += (size_t) *prefix +  sizeof (size_t);
+        byte *prefix = zframe_data (frame) + offset;
+        byte *data = zframe_data (frame) + offset + sizeof (uint64_t);
+        offset += (uint64_t) *prefix +  sizeof (uint64_t);
 
+        zmsg_t *zmessage;
 #if CZMQ_VERSION_MAJOR == 3
-        zmsg_t *zmessage = zmsg_decode (data, (size_t) *prefix);
+        zmessage = zmsg_decode (data, (size_t) *prefix);
 #else
-/* FIXME: Someone should look at this - what do we want achieved here? */
-        zmsg_t *zmessage = zmsg_decode (*prefix);
+        {
+            zframe_t *fr = zframe_new (data, (size_t) *prefix);
+            zmessage = zmsg_decode (fr);
+            zframe_destroy (&fr);
+        }
 #endif
         assert (zmessage);
         fty_proto_t *asset = fty_proto_decode (&zmessage); // zmessage destroyed
@@ -568,7 +556,7 @@ nut_load (nut_t *self, const char *fullpath)
         int rv = zhashx_insert (self->assets, fty_proto_name (asset), asset);
         assert (rv == 0);
     }
-    zchunk_destroy (&chunk);
+    zframe_destroy (&frame);
 //    zsys_debug ("---------------------");
     self->changed = false;
     return 0;
