@@ -436,13 +436,21 @@ nut_save (nut_t *self, const char *fullpath)
      */
     fty_proto_t *asset = (fty_proto_t *) zhashx_first (self->assets);
     while (asset) {
-        fty_proto_t *duplicate = fty_proto_dup (asset);
-        uint64_t size = 0;
+        uint64_t size = 0;  // Note: the zmsg_encode() and zframe_size()
+                            // below return a platform-dependent size_t,
+                            // but in protocol we use fixed uint64_t
+        assert ( sizeof(size_t) <= sizeof(uint64_t) );
         zframe_t *frame = NULL;
+        fty_proto_t *duplicate = fty_proto_dup (asset);
         assert (duplicate);
         zmsg_t *zmessage = fty_proto_encode (&duplicate); // duplicate destroyed here
         assert (zmessage);
 
+/* Note: the CZMQ_VERSION_MAJOR comparison below actually assumes versions
+ * we know and care about - v3.0.2 (our legacy default, already obsoleted
+ * by upstream), and v4.x that is in current upstream master. If the API
+ * evolves later (incompatibly), these macros will need to be amended.
+ */
 #if CZMQ_VERSION_MAJOR == 3
         {
             byte *buffer = NULL;
@@ -464,6 +472,7 @@ nut_save (nut_t *self, const char *fullpath)
 
         // prefix
 // FIXME: originally this was for uint64_t, should it be sizeof (size) instead?
+// Also is usage of uint64_t here really warranted (e.g. dictated by protocol)?
         zchunk_extend (chunk, (const void *) &size, sizeof (uint64_t));
         // data
         zchunk_extend (chunk, (const void *) zframe_data (frame), zframe_size (frame));
@@ -531,14 +540,27 @@ nut_load (nut_t *self, const char *fullpath)
     zfile_close (file);
     zfile_destroy (&file);
 
+/* Note: Protocol data uses 8-byte sized words, and zmsg_XXcode and file
+ * functions deal with platform-dependent unsigned size_t and signed off_t.
+ * The off_t is a difficult one to print portably, SO suggests casting to
+ * the intmax type and printing that :)
+ * https://stackoverflow.com/questions/586928/how-should-i-print-types-like-off-t-and-size-t
+ */
     off_t offset = 0;
+    zsys_debug ("zfile_cursize == %jd", (intmax_t)cursize);
 
     while (offset < cursize) {
         byte *prefix = zframe_data (frame) + offset;
         byte *data = zframe_data (frame) + offset + sizeof (uint64_t);
         offset += (uint64_t) *prefix +  sizeof (uint64_t);
+        zsys_debug ("prefix == %" PRIu64 "; offset = %" PRIu64 " ", (uint64_t ) *prefix, offset);
 
-        zmsg_t *zmessage;
+/* Note: the CZMQ_VERSION_MAJOR comparison below actually assumes versions
+ * we know and care about - v3.0.2 (our legacy default, already obsoleted
+ * by upstream), and v4.x that is in current upstream master. If the API
+ * evolves later (incompatibly), these macros will need to be amended.
+ */
+        zmsg_t *zmessage = NULL;
 #if CZMQ_VERSION_MAJOR == 3
         zmessage = zmsg_decode (data, (size_t) *prefix);
 #else
